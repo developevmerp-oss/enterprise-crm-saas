@@ -3,9 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/leadgen_crm';
+const isSslRequired = connectionString.includes('sslmode=require') || connectionString.includes('neon.tech');
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/leadgen_crm',
-  connectionTimeoutMillis: 3000,
+  connectionString,
+  connectionTimeoutMillis: 10000,
+  ssl: isSslRequired ? { rejectUnauthorized: false } : false
 });
 
 let isConnected = false;
