@@ -12,7 +12,7 @@ const pool = new Pool({
   ssl: isSslRequired ? { rejectUnauthorized: false } : false
 });
 
-let isConnected = false;
+let isConnected = !!(process.env.DATABASE_URL);
 
 // Mock fallback store in case Postgres is ever unreachable
 const memoryStore = {
