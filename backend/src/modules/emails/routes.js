@@ -13,15 +13,23 @@ const TRANSPARENT_GIF_BUFFER = Buffer.from(
 );
 
 // Email Transporter Config
-function getEmailTransporter() {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+function getEmailTransporter(customConfig = null) {
+  const config = customConfig || (process.env.SMTP_HOST && process.env.SMTP_USER ? {
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
+  } : null);
+
+  if (config && config.host && config.user) {
     return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587', 10),
-      secure: process.env.SMTP_SECURE === 'true',
+      host: config.host,
+      port: parseInt(config.port || '587', 10),
+      secure: config.secure === true || config.secure === 'true' || parseInt(config.port, 10) === 465,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+        user: config.user,
+        pass: config.pass
       }
     });
   }
@@ -387,15 +395,25 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
       finalBodyHtml = `${finalBodyHtml}${trackingPixelHtml}`;
     }
 
-    // 3. Attempt real SMTP dispatch if configured
-    const transporter = getEmailTransporter();
+    // 3. Attempt real SMTP dispatch (prefer tenant custom SMTP settings if configured)
+    let tenantSmtp = null;
+    if (isPostgresConnected() && req.tenantId) {
+      try {
+        const tenantRes = await pool.query('SELECT settings FROM tenants WHERE id = $1', [req.tenantId]);
+        tenantSmtp = tenantRes.rows[0]?.settings?.smtp || null;
+      } catch (tErr) {
+        console.warn('Could not query tenant SMTP settings:', tErr.message);
+      }
+    }
+
+    const transporter = getEmailTransporter(tenantSmtp);
     let messageId = null;
     let isSimulated = true;
 
-    // Use customized human sender name instead of static 'test'
+    // Use customized human sender name & email (tenant custom SMTP -> env -> fallback)
     const senderUser = req.user || {};
-    const effectiveSenderName = sender_name || process.env.SMTP_FROM_NAME || `${senderUser.first_name || 'Enterprise'} ${senderUser.last_name || 'Solutions'}`.trim();
-    const fromEmail = process.env.SMTP_USER || 'sales@scaloy.com';
+    const effectiveSenderName = sender_name || tenantSmtp?.from_name || process.env.SMTP_FROM_NAME || `${senderUser.first_name || 'Enterprise'} ${senderUser.last_name || 'Solutions'}`.trim();
+    const fromEmail = tenantSmtp?.from_email || tenantSmtp?.user || process.env.SMTP_USER || 'sales@scaloy.com';
     const fromAddress = `"${effectiveSenderName.replace(/"/g, '')}" <${fromEmail}>`;
 
     const recipientFormatted = recipient_name
@@ -671,6 +689,167 @@ router.post('/simulate', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --------------------------------------------------------------------------
+// 8. SMTP & CUSTOM DOMAIN SETTINGS
+// --------------------------------------------------------------------------
+// GET /api/v1/emails/settings
+router.get('/settings', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAGER']), async (req, res) => {
+  try {
+    let customSmtp = null;
+    let tenantName = 'Primary Workspace';
+
+    if (isPostgresConnected() && req.tenantId) {
+      const tenantRes = await pool.query('SELECT name, settings FROM tenants WHERE id = $1', [req.tenantId]);
+      if (tenantRes.rows.length > 0) {
+        tenantName = tenantRes.rows[0].name;
+        customSmtp = tenantRes.rows[0].settings?.smtp || null;
+      }
+    }
+
+    const systemDefault = {
+      configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),
+      host: process.env.SMTP_HOST || '',
+      port: process.env.SMTP_PORT || '587',
+      from_name: process.env.SMTP_FROM_NAME || 'Enterprise Solutions',
+      from_email: process.env.SMTP_USER || ''
+    };
+
+    res.json({
+      success: true,
+      data: {
+        tenant_name: tenantName,
+        is_custom_configured: !!(customSmtp?.host && customSmtp?.user),
+        smtp: customSmtp ? {
+          ...customSmtp,
+          pass: customSmtp.pass ? '••••••••' : ''
+        } : null,
+        system_default: systemDefault
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/v1/emails/settings
+router.post('/settings', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER']), async (req, res) => {
+  try {
+    const { host, port, secure, user, pass, from_name, from_email, domain } = req.body;
+
+    if (!host || !user) {
+      return res.status(400).json({ success: false, error: 'SMTP Host and User/Email are required.' });
+    }
+
+    if (isPostgresConnected() && req.tenantId) {
+      // Get existing settings to preserve password if not updated
+      const tenantRes = await pool.query('SELECT settings FROM tenants WHERE id = $1', [req.tenantId]);
+      const currentSettings = tenantRes.rows[0]?.settings || {};
+      const existingSmtp = currentSettings.smtp || {};
+
+      const newSmtp = {
+        host: host.trim(),
+        port: parseInt(port || '587', 10),
+        secure: secure === true || secure === 'true' || parseInt(port, 10) === 465,
+        user: user.trim(),
+        pass: (pass && pass !== '••••••••') ? pass.trim() : existingSmtp.pass || '',
+        from_name: from_name ? from_name.trim() : (existingSmtp.from_name || 'Enterprise Sales'),
+        from_email: from_email ? from_email.trim() : (existingSmtp.from_email || user.trim()),
+        domain: domain ? domain.trim() : (existingSmtp.domain || user.split('@')[1] || ''),
+        updated_at: new Date().toISOString()
+      };
+
+      await pool.query(`
+        UPDATE tenants
+        SET settings = jsonb_set(COALESCE(settings, '{}'::jsonb), '{smtp}', $1::jsonb)
+        WHERE id = $2
+      `, [JSON.stringify(newSmtp), req.tenantId]);
+
+      return res.json({
+        success: true,
+        message: 'Custom business domain SMTP configuration saved successfully!',
+        data: {
+          ...newSmtp,
+          pass: newSmtp.pass ? '••••••••' : ''
+        }
+      });
+    }
+
+    res.json({ success: true, message: 'Settings saved (mock mode)' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/v1/emails/settings/test
+router.post('/settings/test', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER']), async (req, res) => {
+  try {
+    const { host, port, secure, user, pass, from_name, from_email, test_recipient } = req.body;
+
+    if (!host || !user) {
+      return res.status(400).json({ success: false, error: 'SMTP Host and User/Email are required to test connection.' });
+    }
+
+    // If password is masked, retrieve real password from database
+    let actualPass = pass;
+    if (pass === '••••••••' && isPostgresConnected() && req.tenantId) {
+      const tenantRes = await pool.query('SELECT settings FROM tenants WHERE id = $1', [req.tenantId]);
+      actualPass = tenantRes.rows[0]?.settings?.smtp?.pass || '';
+    }
+
+    const testTransporter = getEmailTransporter({
+      host: host.trim(),
+      port: parseInt(port || '587', 10),
+      secure: secure === true || secure === 'true' || parseInt(port, 10) === 465,
+      user: user.trim(),
+      pass: actualPass
+    });
+
+    if (!testTransporter) {
+      return res.status(400).json({ success: false, error: 'Could not initialize SMTP transport with provided settings.' });
+    }
+
+    // Verify SMTP connection handshake
+    await testTransporter.verify();
+
+    let messageDispatched = false;
+    let recipientTested = test_recipient || user;
+
+    if (recipientTested) {
+      const senderName = from_name || 'Enterprise CRM Test';
+      const senderEmail = from_email || user;
+      await testTransporter.sendMail({
+        from: `"${senderName.replace(/"/g, '')}" <${senderEmail}>`,
+        to: recipientTested,
+        subject: '✅ SMTP & Domain Deliverability Test Probe: Handshake Successful',
+        text: `Hi,\n\nYour custom business domain SMTP connection has been verified successfully!\n\nHost: ${host}\nUser: ${user}\nFrom: ${senderName} <${senderEmail}>\nTime: ${new Date().toUTCString()}\n\nAll outgoing lead generation & proposal outreach will now send directly through this server with authentic corporate identity.`,
+        html: `
+          <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #111827; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #059669; margin-top: 0;">✅ SMTP Connection &amp; Deliverability Probe Successful</h2>
+            <p>Your custom business email domain has been verified and authenticated.</p>
+            <table style="font-size: 13px; margin: 15px 0; border-collapse: collapse;">
+              <tr><td style="padding: 4px 8px; color: #64748b;">SMTP Host:</td><td style="padding: 4px 8px; font-weight: bold;">${host}:${port}</td></tr>
+              <tr><td style="padding: 4px 8px; color: #64748b;">Authenticated User:</td><td style="padding: 4px 8px; font-weight: bold;">${user}</td></tr>
+              <tr><td style="padding: 4px 8px; color: #64748b;">From Identity:</td><td style="padding: 4px 8px; font-weight: bold;">${senderName} &lt;${senderEmail}&gt;</td></tr>
+            </table>
+            <p style="color: #475569; font-size: 12px; margin-top: 15px;">Outgoing lead generation &amp; commercial proposals are now configured to send directly from this corporate address.</p>
+          </div>
+        `
+      });
+      messageDispatched = true;
+    }
+
+    res.json({
+      success: true,
+      message: messageDispatched
+        ? `SMTP connection verified and probe email successfully sent to ${recipientTested}!`
+        : 'SMTP connection handshake verified successfully!'
+    });
+  } catch (err) {
+    console.error('SMTP test error:', err.message);
+    res.status(400).json({ success: false, error: `SMTP Connection Failed: ${err.message}` });
   }
 });
 

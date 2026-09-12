@@ -385,6 +385,57 @@ export async function simulateEmailEvent(tracking_token: string, event: 'open' |
   return data;
 }
 
+export interface SmtpSettings {
+  host: string;
+  port: number | string;
+  secure?: boolean;
+  user: string;
+  pass?: string;
+  from_name?: string;
+  from_email?: string;
+  domain?: string;
+}
+
+export async function fetchEmailSettings(): Promise<{
+  tenant_name: string;
+  is_custom_configured: boolean;
+  smtp: SmtpSettings | null;
+  system_default: {
+    configured: boolean;
+    host: string;
+    port: string;
+    from_name: string;
+    from_email: string;
+  };
+}> {
+  const res = await fetch(`${API_BASE}/emails/settings`, { headers: getHeaders(), cache: 'no-store' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch email settings');
+  return data.data;
+}
+
+export async function saveEmailSettings(payload: SmtpSettings): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/emails/settings`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save email settings');
+  return data;
+}
+
+export async function testEmailSettings(payload: SmtpSettings & { test_recipient?: string }): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/emails/settings/test`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'SMTP test probe failed');
+  return data;
+}
+
 // 10. Public Client Proposal Portal API
 export async function fetchPublicProposal(token: string): Promise<any> {
   const res = await fetch(`${API_BASE}/emails/public/proposal/${token}`, { cache: 'no-store' });

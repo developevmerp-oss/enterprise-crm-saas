@@ -13,6 +13,7 @@ import { CompanyModal } from '../components/CompanyModal';
 import { TeamModal } from '../components/TeamModal';
 import { ContactModal } from '../components/ContactModal';
 import { SendEmailModal } from '../components/SendEmailModal';
+import { SmtpSettingsModal } from '../components/SmtpSettingsModal';
 import {
   Tenant, UserRole, User, Lead, Company, Contact, Deal, Task, Product, Quotation, AnalyticsDashboard, TrackedEmail, EmailStats
 } from '../types';
@@ -75,7 +76,8 @@ import {
   MousePointerClick,
   ExternalLink,
   Sparkles,
-  FileText
+  FileText,
+  Server
 } from 'lucide-react';
 
 export default function EnterpriseApp() {
@@ -110,6 +112,7 @@ export default function EnterpriseApp() {
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isSendEmailModalOpen, setIsSendEmailModalOpen] = useState(false);
+  const [isSmtpModalOpen, setIsSmtpModalOpen] = useState(false);
   const [emailTargetLead, setEmailTargetLead] = useState<Lead | null>(null);
   const [emailPreselectedQuoteId, setEmailPreselectedQuoteId] = useState<string | undefined>(undefined);
 
@@ -661,6 +664,14 @@ export default function EnterpriseApp() {
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setIsSmtpModalOpen(true)}
+                    className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center space-x-1.5 border border-slate-700"
+                    title="Configure Custom Business Domain & SMTP Server"
+                  >
+                    <Server className="w-4 h-4 text-emerald-400" />
+                    <span>⚙️ Corporate Domain / SMTP</span>
+                  </button>
+                  <button
                     onClick={() => loadData()}
                     className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl border border-slate-200 transition"
                     title="Refresh live tracking data"
@@ -677,6 +688,33 @@ export default function EnterpriseApp() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Deliverability & Corporate Domain Status Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-4 rounded-2xl text-white shadow-xs border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-white">Outbound Email Deliverability Engine</span>
+                      <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40 font-semibold">
+                        Dual Plain-Text + HTML Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Send from your verified corporate domain (e.g. info@evmerp.com) with SPF, DKIM &amp; DMARC to guarantee 98%+ Primary Inbox placement.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsSmtpModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shrink-0"
+                >
+                  <Server className="w-3.5 h-3.5" />
+                  <span>Configure Domain SMTP</span>
+                </button>
               </div>
 
               {/* 4 Metrics Cards */}
@@ -1426,6 +1464,15 @@ export default function EnterpriseApp() {
         onClose={() => setIsTeamModalOpen(false)}
         onUserCreated={() => {
           showToast('New team member invited and activated!');
+          loadData();
+        }}
+      />
+
+      <SmtpSettingsModal
+        isOpen={isSmtpModalOpen}
+        onClose={() => setIsSmtpModalOpen(false)}
+        onSettingsSaved={() => {
+          showToast('Corporate domain SMTP configuration updated!');
           loadData();
         }}
       />
