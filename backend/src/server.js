@@ -26,6 +26,7 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-user-role']
 }));
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -38,7 +39,23 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check
+// Root & Health checks
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    platform: 'Enterprise Multi-Tenant CRM SaaS API',
+    health: '/api/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
