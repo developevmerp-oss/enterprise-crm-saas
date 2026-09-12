@@ -5,8 +5,22 @@ const csv = require('csv-parser');
 const fs = require('fs');
 const { pool, isPostgresConnected } = require('../../db/init');
 const { requireRoles } = require('../../middleware/rbac');
-
-const upload = multer({ dest: 'uploads/' });
+const os = require('os');
+const path = require('path');
+const uploadDir = path.join(os.tmpdir(), 'crm-uploads');
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  // Ignored in restricted environments
+}
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
+  })
+});
 
 // Lead Scoring Utility
 function calculateScore(lead) {
