@@ -379,8 +379,9 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
     }
 
     // 2. Build open tracking pixel (only if track_opens is active and NOT high inbox mode)
+    let trackingPixelUrl = null;
     if (track_opens && deliverability_mode !== 'HIGH_INBOX') {
-      const trackingPixelUrl = `${backendUrl}/api/v1/emails/track/open/${trackingToken}`;
+      trackingPixelUrl = `${backendUrl}/api/v1/emails/track/open/${trackingToken}`;
       // Anti-spam safe tracking pixel: avoid display:none which spam filters penalize
       const trackingPixelHtml = `<br/><img src="${trackingPixelUrl}" width="1" height="1" alt="" border="0" style="width:1px;height:1px;min-height:1px;outline:none;" />`;
       finalBodyHtml = `${finalBodyHtml}${trackingPixelHtml}`;
