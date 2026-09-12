@@ -359,16 +359,15 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
       const trackedProposalLink = `${backendUrl}/api/v1/emails/track/click/${trackingToken}?target=${encodeURIComponent(rawProposalLink)}`;
       proposalUrl = rawProposalLink;
 
-      // Replace any {{proposal_link}} placeholder or append CTA button
+      // Replace any {{proposal_link}} placeholder or append natural document link
       if (finalBodyHtml.includes('{{proposal_link}}')) {
         finalBodyHtml = finalBodyHtml.replace(/\{\{proposal_link\}\}/g, trackedProposalLink);
       } else {
         const ctaHtml = `
-          <div style="margin: 24px 0; text-align: center;">
-            <a href="${trackedProposalLink}" style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 28px; font-weight: bold; text-decoration: none; border-radius: 8px; font-size: 14px; font-family: sans-serif;">
-              📄 Review Commercial Proposal & Pricing &rarr;
-            </a>
-          </div>
+          <p style="margin: 18px 0 10px 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #111827;">
+            You can review our itemized scope of work and commercial proposal here:<br/>
+            👉 <a href="${trackedProposalLink}" style="color: #0b57d0; font-weight: bold; text-decoration: underline;">Review Commercial Proposal &amp; Scope of Work &rarr;</a>
+          </p>
         `;
         finalBodyHtml = `${finalBodyHtml}${ctaHtml}`;
       }

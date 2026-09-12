@@ -27,7 +27,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
   const [selectedQuoteId, setSelectedQuoteId] = useState(preselectedQuoteId || '');
-  const [template, setTemplate] = useState<'PROPOSAL' | 'FOLLOWUP' | 'CUSTOM'>('PROPOSAL');
+  const [template, setTemplate] = useState<'PROPOSAL' | 'THREAD_FOLLOWUP' | 'FOLLOWUP' | 'CUSTOM'>('PROPOSAL');
   const [previewMode, setPreviewMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -46,32 +46,62 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
     }
   }, [targetLead, preselectedQuoteId, quotations, template, selectedQuoteId]);
 
-  // Apply template defaults
+  // Apply template defaults matching authentic executive emails
   useEffect(() => {
-    const name = recipientName || targetLead?.first_name || 'Valued Client';
+    const name = recipientName || targetLead?.first_name || 'Mark';
     const comp = targetLead?.company_name || 'your company';
+    const qNum = selectedQuote ? selectedQuote.quote_number : 'QT-2026-002';
+    const qAmt = selectedQuote ? `$${Number(selectedQuote.total_amount).toLocaleString()}` : '$65,000';
 
     if (template === 'PROPOSAL') {
-      const qNum = selectedQuote ? selectedQuote.quote_number : 'QT-2026';
-      const qAmt = selectedQuote ? `$${Number(selectedQuote.total_amount).toLocaleString()}` : '$25,000';
-
-      setSubject(`Official Commercial Proposal & Scope of Work - ${comp} [${qNum}]`);
+      setSubject(`Enterprise ERP & Automation Platform - ${comp} [${qNum}]`);
       setBodyText(
         `Dear ${name},\n\n` +
-        `Thank you for taking the time to explore how our enterprise solutions can accelerate growth for ${comp}.\n\n` +
-        `Based on our technical discovery discussions, our team has prepared an itemized commercial proposal valued at ${qAmt}.\n\n` +
-        `You can securely review the full scope of deliverables, SLA guarantees, and itemized terms using the interactive proposal link below.\n\n` +
+        `I recently came across ${comp} and wanted to reach out regarding your business operations.\n\n` +
+        `We are a dedicated technology team, and we have developed an enterprise operations & CRM management platform designed specifically for growing businesses in ${targetLead?.industry || 'your industry'}.\n\n` +
+        `Looking at ${comp}'s operations, I believe there could be a strong fit. Our platform can help manage:\n` +
+        `• Sales pipeline and multi-channel lead tracking\n` +
+        `• Field planning, scheduling and team activity logs\n` +
+        `• Resource management, machinery and asset tracking\n` +
+        `• Digital quotations, commercial proposals and contract closing\n` +
+        `• Financial records, approvals and real-time executive dashboards\n\n` +
+        `Based on your requirements, our team has prepared an itemized commercial proposal valued at ${qAmt}.\n\n` +
+        `I would be happy to give you a quick 20-minute demo and show how it could work specifically for ${comp}.\n\n` +
+        `Would you be available for a short call this week or next?\n\n` +
         `Best regards,\n` +
-        `Scaloy Enterprise Growth Team`
+        `Enterprise Solutions Team`
       );
-    } else if (template === 'FOLLOWUP') {
-      setSubject(`Quick Follow-up regarding ${comp}'s CRM & Growth Roadmap`);
+    } else if (template === 'THREAD_FOLLOWUP') {
+      // 2nd follow-up email with previous thread quote below (matches your exact screenshot)
+      setSubject(`Re: Enterprise ERP & Automation Platform - ${comp}`);
       setBodyText(
         `Hi ${name},\n\n` +
-        `I wanted to check in following up on our previous correspondence. We have helped several peers in ${targetLead?.industry || 'your sector'} increase their sales pipeline velocity by over 40%.\n\n` +
-        `Would you have 15 minutes this Thursday or Friday for a brief walkthrough?\n\n` +
-        `Looking forward to connecting,\n` +
-        `Enterprise Sales Team`
+        `Just following up on my previous email regarding our operations platform and its potential fit for ${comp}.\n\n` +
+        `We've successfully delivered several large and complex software projects, and our platform is built using modern technologies with AI-powered capabilities to help businesses improve operational visibility, reporting and decision-making.\n\n` +
+        `The platform is also fully customisable and cost-effective, so you only invest in the modules and features your operation actually needs.\n\n` +
+        `I'd be happy to give you a quick 20-minute demo and show how it could work specifically for ${comp}.\n\n` +
+        `Would you be available for a short call this week or next?\n\n` +
+        `Best regards,\n` +
+        `Enterprise Solutions Team\n\n` +
+        `On Tue, Sep 8, 2026 at 4:52 PM Enterprise Solutions Team wrote:\n` +
+        `Dear ${name},\n\n` +
+        `I recently came across ${comp} and wanted to reach out regarding your operations.\n\n` +
+        `We are a technology team, and we have developed an operations management platform designed specifically for field-based and growing enterprises.\n\n` +
+        `Looking at ${comp}'s operations, I believe there could be a good fit. Our platform can help manage:\n` +
+        `• Land and operational activities\n` +
+        `• Field planning and scheduling\n` +
+        `• Employees and team accountability\n` +
+        `• Commercial proposals and executive reporting\n\n` +
+        `We have attached an itemized commercial proposal valued at ${qAmt} [${qNum}].`
+      );
+    } else if (template === 'FOLLOWUP') {
+      setSubject(`Quick Follow-up regarding ${comp}'s Growth Roadmap`);
+      setBodyText(
+        `Hi ${name},\n\n` +
+        `I wanted to check in following up on our previous note. We recently helped several peers in ${targetLead?.industry || 'your sector'} increase their operational pipeline velocity by over 40%.\n\n` +
+        `Would you be open to a quick 10-minute chat this Thursday or Friday to see if this aligns with ${comp}'s priorities?\n\n` +
+        `Best regards,\n` +
+        `Enterprise Solutions Team`
       );
     }
   }, [template, recipientName, targetLead, selectedQuote]);
@@ -89,16 +119,18 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
       setIsSubmitting(true);
       setErrorMsg(null);
 
-      // Convert newlines to paragraphs for HTML body
+      // Clean, native corporate email formatting (matches Gmail/Outlook native look without fake cards)
       const formattedHtml = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-          <div style="border-bottom: 2px solid #059669; padding-bottom: 12px; margin-bottom: 20px;">
-            <span style="font-size: 18px; font-weight: 800; color: #065f46; letter-spacing: -0.5px;">Scaloy Digital Enterprise</span>
-          </div>
-          ${bodyText.split('\n\n').map(p => `<p style="margin: 0 0 16px 0;">${p.replace(/\n/g, '<br/>')}</p>`).join('')}
-          <div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
-            Sent securely via Scaloy Multi-Tenant CRM SaaS Cloud
-          </div>
+        <div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #222222; margin: 0; padding: 0;">
+          ${bodyText.split('\n\n').map(p => {
+            if (p.startsWith('On ') && p.includes('wrote:')) {
+              return `<div style="margin: 22px 0 10px 0; color: #555555; font-size: 13px; border-left: 2px solid #cbd5e1; padding-left: 10px;">${p.replace(/\n/g, '<br/>')}</div>`;
+            }
+            if (p.includes('• ') || p.includes('- ')) {
+              return `<div style="margin: 4px 0 12px 14px; font-size: 14px; line-height: 1.6;">${p.replace(/\n/g, '<br/>')}</div>`;
+            }
+            return `<p style="margin: 0 0 14px 0; font-size: 14px; line-height: 1.6;">${p.replace(/\n/g, '<br/>')}</p>`;
+          }).join('')}
         </div>
       `;
 
@@ -191,7 +223,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 <span>Smart Outreach Template</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setTemplate('PROPOSAL')}
@@ -201,7 +233,18 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  📄 Commercial Proposal
+                  📄 1st Proposal Pitch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTemplate('THREAD_FOLLOWUP')}
+                  className={`px-3 py-2 text-xs rounded-xl border font-bold text-left transition ${
+                    template === 'THREAD_FOLLOWUP'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-2xs'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  🔄 Threaded Follow-up
                 </button>
                 <button
                   type="button"
@@ -212,7 +255,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  ⚡ Discovery Follow-up
+                  ⚡ Quick Check-in
                 </button>
                 <button
                   type="button"
@@ -301,22 +344,25 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
 
             {/* Body */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Message Content *</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span>Message Content (Plain Text, Bullets & Thread History Supported) *</span>
+                <span className="text-[10px] text-slate-400">Renders as native Gmail / Outlook text</span>
+              </label>
               <textarea
+                rows={10}
                 required
-                rows={7}
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
-                placeholder="Write your email body..."
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-sans"
+                placeholder="Compose direct, authentic corporate email..."
+                className="w-full px-3 py-2.5 text-xs font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed"
               />
             </div>
 
-            {/* Tracking Badge notice */}
-            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center space-x-2 text-[11px] text-emerald-900">
+            {/* Smart Delivery Helper */}
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center space-x-2 text-slate-600 text-xs">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
-                <strong>Smart Delivery:</strong> An invisible 1x1 transparent tracking pixel will be automatically inserted into the footer. If a quotation is attached, a secure redirect link will track when the client views your proposal.
+                <strong>100% Native 1-to-1 Formatting:</strong> No automated marketing cards or bot footers. An invisible 1x1 tracking pixel is placed in the background to detect opens, and commercial proposal clicks are recorded in real-time.
               </span>
             </div>
 
@@ -349,39 +395,49 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
             </div>
           </form>
         ) : (
-          /* Client Inbox Preview */
+          /* Client Inbox Preview (100% Authentic Gmail look) */
           <div className="p-6 space-y-4">
             <div className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs bg-white">
-              <div className="bg-slate-100 p-3 border-b border-slate-200 text-xs space-y-1">
+              <div className="bg-slate-50 p-3.5 border-b border-slate-200 text-xs space-y-1.5 font-sans">
+                <div className="flex items-center justify-between">
+                  <div><strong className="text-slate-500">From:</strong> Enterprise Sales &lt;sales@company.com&gt;</div>
+                  <span className="text-[10px] text-slate-400">Inbox Preview</span>
+                </div>
                 <div><strong className="text-slate-500">To:</strong> {recipientName || 'Client'} &lt;{recipientEmail || 'client@company.com'}&gt;</div>
-                <div><strong className="text-slate-500">From:</strong> Scaloy Enterprise Sales &lt;sales@scaloy.com&gt;</div>
                 <div><strong className="text-slate-500">Subject:</strong> <span className="font-bold text-slate-800">{subject || 'No subject'}</span></div>
               </div>
 
-              <div className="p-6 text-xs text-slate-800 space-y-3 leading-relaxed font-sans">
-                {bodyText.split('\n\n').map((p, idx) => (
-                  <p key={idx} className="whitespace-pre-line">{p}</p>
-                ))}
+              <div className="p-6 text-sm text-slate-800 space-y-3.5 leading-relaxed font-sans">
+                {bodyText.split('\n\n').map((p, idx) => {
+                  if (p.startsWith('On ') && p.includes('wrote:')) {
+                    return (
+                      <div key={idx} className="mt-4 pt-2 border-l-2 border-slate-300 pl-3 text-xs text-slate-600 font-sans">
+                        <p className="whitespace-pre-line">{p}</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <p key={idx} className="whitespace-pre-line text-sm leading-relaxed text-slate-900">{p}</p>
+                  );
+                })}
 
                 {selectedQuoteId && (
-                  <div className="my-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-                    <div className="text-xs font-black text-emerald-900">Commercial Proposal Attached</div>
-                    <div className="text-[11px] text-emerald-700">
-                      Quote: {selectedQuote?.quote_number || 'QT-2026'} · Total Value: <strong>${Number(selectedQuote?.total_amount || 0).toLocaleString()}</strong>
-                    </div>
-                    <div>
-                      <span className="inline-block px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl shadow-xs text-xs">
-                        📄 Review Commercial Proposal & Pricing &rarr;
+                  <div className="my-4 pt-2">
+                    <p className="text-sm font-sans text-slate-800">
+                      You can review our full itemized commercial proposal and scope of work here:
+                    </p>
+                    <p className="mt-1">
+                      👉 <span className="text-blue-600 font-semibold underline cursor-pointer hover:text-blue-800">
+                        Review Commercial Proposal & Scope of Work [{selectedQuote?.quote_number || 'QT-2026'}] &rarr;
                       </span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">Tracked Redirect: records client click & timestamps engagement</div>
+                    </p>
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between">
-                  <span>Sent via Scaloy Multi-Tenant CRM SaaS</span>
-                  <span className="flex items-center text-emerald-600 font-bold">
-                    <CheckCircle2 className="w-3 h-3 mr-1" /> 1x1 Open Pixel Active
+                <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-sans">
+                  <span>Authentic 1-to-1 Executive Email Format</span>
+                  <span className="flex items-center text-emerald-600 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> 1x1 Tracking Pixel Active
                   </span>
                 </div>
               </div>
@@ -399,10 +455,10 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 type="button"
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-2"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center space-x-2"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Send Now</span>
+                <span>Confirm & Send Email</span>
               </button>
             </div>
           </div>
