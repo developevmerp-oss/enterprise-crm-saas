@@ -20,13 +20,45 @@ const emailsRouter = require('./modules/emails/routes');
 const app = express();
 const PORT = process.env.PORT || 5060;
 
-// Core Middleware
+// Allowed Origins for Cross-Origin Resource Sharing (CORS)
+const allowedOrigins = [
+  'https://enterprise-crm-saas-ancw.vercel.app',
+  'https://enterprise-crm-saas-eight.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5060',
+  'http://localhost:5080'
+];
+
 app.use(cors({
-  origin: '*',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('localhost')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Permissive fallback for seamless client access
+  },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-user-role']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id', 'x-user-role', 'Accept']
 }));
-app.options('*', cors());
+
+// Robust CORS & Preflight handler (compatible with Express 5)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-tenant-id, x-user-role, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
