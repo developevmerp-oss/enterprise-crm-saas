@@ -333,7 +333,10 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
       recipient_name,
       subject,
       body_html,
-      sender_name
+      body_text,
+      sender_name,
+      track_opens = true,
+      deliverability_mode = 'FULL_TRACKING' // 'FULL_TRACKING' or 'HIGH_INBOX'
     } = req.body;
 
     if (!recipient_email || !subject || !body_html) {
@@ -346,56 +349,76 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
     const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.PORT || 5080}`;
     const frontendUrl = process.env.FRONTEND_PUBLIC_URL || 'http://localhost:3000';
 
-    // 1. Build open tracking pixel URL & HTML
-    const trackingPixelUrl = `${backendUrl}/api/v1/emails/track/open/${trackingToken}`;
-    const trackingPixelHtml = `<br/><img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0;outline:none;" />`;
-
-    // 2. Build proposal link if attached
+    // 1. Build Proposal Links (Direct or Tracked Redirect)
     let finalBodyHtml = body_html;
+    let plainTextBody = body_text || body_html.replace(/<br\s*[\/]?>/gi, '\n').replace(/<\/?[^>]+(>|$)/g, '').trim();
     let proposalUrl = null;
 
     if (proposalToken) {
       const rawProposalLink = `${frontendUrl}/proposal/${proposalToken}`;
-      const trackedProposalLink = `${backendUrl}/api/v1/emails/track/click/${trackingToken}?target=${encodeURIComponent(rawProposalLink)}`;
       proposalUrl = rawProposalLink;
 
-      // Replace any {{proposal_link}} placeholder or append natural document link
+      // In HIGH_INBOX mode, use direct clean links to prevent corporate link-reputation flags
+      const proposalLinkToUse = (deliverability_mode === 'HIGH_INBOX')
+        ? rawProposalLink
+        : `${backendUrl}/api/v1/emails/track/click/${trackingToken}?target=${encodeURIComponent(rawProposalLink)}`;
+
       if (finalBodyHtml.includes('{{proposal_link}}')) {
-        finalBodyHtml = finalBodyHtml.replace(/\{\{proposal_link\}\}/g, trackedProposalLink);
+        finalBodyHtml = finalBodyHtml.replace(/\{\{proposal_link\}\}/g, proposalLinkToUse);
       } else {
         const ctaHtml = `
           <p style="margin: 18px 0 10px 0; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.6; color: #111827;">
             You can review our itemized scope of work and commercial proposal here:<br/>
-            👉 <a href="${trackedProposalLink}" style="color: #0b57d0; font-weight: bold; text-decoration: underline;">Review Commercial Proposal &amp; Scope of Work &rarr;</a>
+            👉 <a href="${proposalLinkToUse}" style="color: #0b57d0; font-weight: bold; text-decoration: underline;">Review Commercial Proposal &amp; Scope of Work &rarr;</a>
           </p>
         `;
         finalBodyHtml = `${finalBodyHtml}${ctaHtml}`;
       }
+
+      plainTextBody += `\n\nReview Commercial Proposal & Scope of Work: ${proposalLinkToUse}\n`;
     }
 
-    // Append the tracking pixel at the end of the email
-    finalBodyHtml = `${finalBodyHtml}${trackingPixelHtml}`;
+    // 2. Build open tracking pixel (only if track_opens is active and NOT high inbox mode)
+    if (track_opens && deliverability_mode !== 'HIGH_INBOX') {
+      const trackingPixelUrl = `${backendUrl}/api/v1/emails/track/open/${trackingToken}`;
+      // Anti-spam safe tracking pixel: avoid display:none which spam filters penalize
+      const trackingPixelHtml = `<br/><img src="${trackingPixelUrl}" width="1" height="1" alt="" border="0" style="width:1px;height:1px;min-height:1px;outline:none;" />`;
+      finalBodyHtml = `${finalBodyHtml}${trackingPixelHtml}`;
+    }
 
     // 3. Attempt real SMTP dispatch if configured
     const transporter = getEmailTransporter();
     let messageId = null;
     let isSimulated = true;
 
-    const fromName = process.env.SMTP_FROM_NAME || sender_name || 'Enterprise Sales';
+    // Use customized human sender name instead of static 'test'
+    const senderUser = req.user || {};
+    const effectiveSenderName = sender_name || process.env.SMTP_FROM_NAME || `${senderUser.first_name || 'Enterprise'} ${senderUser.last_name || 'Solutions'}`.trim();
     const fromEmail = process.env.SMTP_USER || 'sales@scaloy.com';
-    const fromAddress = process.env.SMTP_FROM || `"${fromName}" <${fromEmail}>`;
+    const fromAddress = `"${effectiveSenderName.replace(/"/g, '')}" <${fromEmail}>`;
+
+    const recipientFormatted = recipient_name
+      ? `"${recipient_name.replace(/"/g, '')}" <${recipient_email}>`
+      : recipient_email;
 
     if (transporter) {
       try {
         const sendInfo = await transporter.sendMail({
           from: fromAddress,
-          to: recipient_email,
+          to: recipientFormatted,
+          replyTo: fromEmail,
           subject,
-          html: finalBodyHtml
+          text: plainTextBody, // CRITICAL: Multipart/alternative RFC 2046 avoids MIME_HTML_ONLY spam penalty
+          html: finalBodyHtml,
+          headers: {
+            'X-Priority': '3',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
+          }
         });
         messageId = sendInfo.messageId;
         isSimulated = false;
-        console.log(`✅ [Email Sent via SMTP]: ${messageId} to ${recipient_email}`);
+        console.log(`✅ [Email Sent via SMTP]: ${messageId} to ${recipient_email} as "${effectiveSenderName}"`);
       } catch (smtpErr) {
         console.error('❌ [SMTP Dispatch Error]:', smtpErr.message);
         throw new Error(`Email Delivery Failed (${process.env.SMTP_HOST}): ${smtpErr.message}`);

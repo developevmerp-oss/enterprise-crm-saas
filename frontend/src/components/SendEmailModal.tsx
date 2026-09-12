@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, Mail, Send, FileText, CheckCircle2, Eye, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Mail, Send, FileText, CheckCircle2, Eye, Sparkles, AlertCircle, ShieldCheck, ShieldAlert, Check } from 'lucide-react';
 import { Lead, Quotation } from '../types';
 import { sendEmail } from '../lib/api';
 
@@ -24,6 +24,8 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
 }) => {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
+  const [senderName, setSenderName] = useState('Enterprise Solutions Team');
+  const [deliverabilityMode, setDeliverabilityMode] = useState<'HIGH_INBOX' | 'FULL_TRACKING'>('HIGH_INBOX');
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
   const [selectedQuoteId, setSelectedQuoteId] = useState(preselectedQuoteId || '');
@@ -33,6 +35,30 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const selectedQuote = quotations.find((q) => q.id === selectedQuoteId);
+
+  // Real-time Anti-Spam Scanner
+  const spamAnalysis = useMemo(() => {
+    const triggerWords = [
+      'free', 'guarantee', 'guaranteed', '100%', 'urgent', 'act now', 'winner', 
+      'risk-free', 'risk free', 'make money', 'cash bonus', 'cheap', 'lowest price', '$$$',
+      'click below', 'no catch', 'congratulations'
+    ];
+    const fullText = `${subject} ${bodyText}`.toLowerCase();
+    const foundTriggers = triggerWords.filter(w => fullText.includes(w));
+    const isAllCapsSubject = subject.length > 5 && subject === subject.toUpperCase() && /[A-Z]/.test(subject);
+    
+    let score = 100;
+    if (foundTriggers.length > 0) score -= foundTriggers.length * 15;
+    if (isAllCapsSubject) score -= 30;
+    if (score < 30) score = 30;
+
+    return {
+      score,
+      foundTriggers,
+      isAllCapsSubject,
+      isOptimal: score >= 90
+    };
+  }, [subject, bodyText]);
 
   useEffect(() => {
     if (targetLead) {
@@ -141,10 +167,13 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
         recipient_name: recipientName,
         subject,
         body_html: formattedHtml,
-        sender_name: 'Scaloy Enterprise Sales'
+        body_text: bodyText,
+        sender_name: senderName,
+        deliverability_mode: deliverabilityMode,
+        track_opens: deliverabilityMode === 'FULL_TRACKING'
       });
 
-      onEmailSent(res.message || 'Tracked email successfully dispatched!');
+      onEmailSent(res.message || 'Email successfully dispatched!');
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to dispatch email');
@@ -165,13 +194,13 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
             </div>
             <div>
               <h3 className="font-black text-base flex items-center gap-2">
-                Send Tracked Outreach & Proposal
-                <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40">
-                  Open & Click Detection Active
+                Send 1-to-1 Corporate Outreach
+                <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/40 font-semibold">
+                  {deliverabilityMode === 'HIGH_INBOX' ? '🛡️ Max Inbox Deliverability' : '📊 Full Tracking Active'}
                 </span>
               </h3>
               <p className="text-[11px] text-emerald-200/80">
-                Inbox opens are tracked via invisible 1x1 pixels. Proposal clicks record client engagement in real time.
+                100% human-crafted format. RFC 2046 dual-format (Plain-Text + HTML) prevents automated spam filtering.
               </p>
             </div>
           </div>
@@ -181,32 +210,33 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
         </div>
 
         {errorMsg && (
-          <div className="mx-6 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+          <div className="m-6 mb-0 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Tab switcher: Compose vs Preview */}
+        {/* Navigation Tabs (Compose vs Preview) */}
         <div className="flex border-b border-slate-200 px-6 pt-3 bg-slate-50/50 gap-3">
           <button
             type="button"
             onClick={() => setPreviewMode(false)}
-            className={`pb-2 text-xs font-bold transition border-b-2 ${
+            className={`pb-2.5 text-xs font-bold transition flex items-center space-x-1.5 border-b-2 ${
               !previewMode
                 ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            ✏️ Compose Message
+            <FileText className="w-3.5 h-3.5" />
+            <span>Compose Email</span>
           </button>
           <button
             type="button"
             onClick={() => setPreviewMode(true)}
-            className={`pb-2 text-xs font-bold transition border-b-2 flex items-center space-x-1 ${
+            className={`pb-2.5 text-xs font-bold transition flex items-center space-x-1.5 border-b-2 ${
               previewMode
                 ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
             <Eye className="w-3.5 h-3.5" />
@@ -271,6 +301,61 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
               </div>
             </div>
 
+            {/* Sender Identity & Deliverability Mode */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  From / Sender Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="e.g. Jack | EVM ERP"
+                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Real human name ensures 1-to-1 inbox delivery</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Deliverability Optimization *
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDeliverabilityMode('HIGH_INBOX')}
+                    className={`px-2 py-1.5 text-[11px] rounded-xl font-bold border text-center transition flex items-center justify-center gap-1 ${
+                      deliverabilityMode === 'HIGH_INBOX'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span>🛡️ Max Inbox</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliverabilityMode('FULL_TRACKING')}
+                    className={`px-2 py-1.5 text-[11px] rounded-xl font-bold border text-center transition flex items-center justify-center gap-1 ${
+                      deliverabilityMode === 'FULL_TRACKING'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5 shrink-0" />
+                    <span>📊 Track All</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {deliverabilityMode === 'HIGH_INBOX'
+                    ? 'Bypasses corporate spam firewalls (clean direct link, zero web-beacons)'
+                    : 'Records 1x1 open pixel and click redirect engagement'}
+                </p>
+              </div>
+            </div>
+
             {/* Recipient & Quote selector */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
@@ -301,7 +386,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  Attach Commercial Quotation (Generates Tracked Proposal Link)
+                  Attach Commercial Quotation (Generates Proposal Link)
                   {quotations.length > 0 && (
                     <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
                       {quotations.length} available
@@ -315,21 +400,16 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 onChange={(e) => setSelectedQuoteId(e.target.value)}
                 className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-semibold text-slate-800 bg-white"
               >
-                <option value="">No quotation attached (standard email tracking only)</option>
+                <option value="">No quotation attached (standard executive note)</option>
                 {quotations.map((q) => (
                   <option key={q.id} value={q.id}>
                     {q.quote_number} — ${Number(q.total_amount).toLocaleString()} ({q.deal_title || 'Commercial Quote'})
                   </option>
                 ))}
               </select>
-              {quotations.length === 0 && (
-                <p className="text-[11px] text-amber-600 mt-1 font-medium">
-                  💡 No quotes found in this workspace yet. You can create custom proposals anytime in the <strong>Quotes & Products</strong> tab.
-                </p>
-              )}
             </div>
 
-            {/* Subject */}
+            {/* Subject Line */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Subject Line *</label>
               <input
@@ -342,11 +422,52 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
               />
             </div>
 
-            {/* Body */}
+            {/* Anti-Spam Deliverability Health Banner */}
+            <div className={`p-3 rounded-2xl border text-xs flex items-start space-x-2.5 ${
+              spamAnalysis.isOptimal
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                : 'bg-amber-50 border-amber-300 text-amber-900'
+            }`}>
+              {spamAnalysis.isOptimal ? (
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <div className="flex items-center justify-between font-bold">
+                  <span>
+                    {spamAnalysis.isOptimal
+                      ? 'Inbox Deliverability Score: 100% (High Inbox Probability)'
+                      : `Deliverability Warning (Score: ${spamAnalysis.score}%)`}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md font-black bg-white border border-current">
+                    {deliverabilityMode === 'HIGH_INBOX' ? 'Direct Inbox Mode' : 'Tracked Mode'}
+                  </span>
+                </div>
+                {spamAnalysis.isOptimal ? (
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    RFC 2046 Multipart (Plain-Text + HTML) enabled. Zero spam keywords detected.
+                  </p>
+                ) : (
+                  <div className="text-[11px] text-amber-800 mt-0.5 space-y-0.5">
+                    {spamAnalysis.foundTriggers.length > 0 && (
+                      <p>
+                        ⚠️ Spam trigger keywords detected: <strong>{spamAnalysis.foundTriggers.join(', ')}</strong>. Consider replacing them with neutral business terms.
+                      </p>
+                    )}
+                    {spamAnalysis.isAllCapsSubject && (
+                      <p>⚠️ Subject is in ALL CAPS. Most corporate spam filters penalize uppercase subjects.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Message Body */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Message Content (Plain Text, Bullets & Thread History Supported) *</span>
-                <span className="text-[10px] text-slate-400">Renders as native Gmail / Outlook text</span>
+                <span>Message Content (Plain Text, Bullets & Quoted History Supported) *</span>
+                <span className="text-[10px] text-slate-400">Renders as native 1-to-1 Gmail / Outlook text</span>
               </label>
               <textarea
                 rows={10}
@@ -356,14 +477,6 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 placeholder="Compose direct, authentic corporate email..."
                 className="w-full px-3 py-2.5 text-xs font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed"
               />
-            </div>
-
-            {/* Smart Delivery Helper */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center space-x-2 text-slate-600 text-xs">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>
-                <strong>100% Native 1-to-1 Formatting:</strong> No automated marketing cards or bot footers. An invisible 1x1 tracking pixel is placed in the background to detect opens, and commercial proposal clicks are recorded in real-time.
-              </span>
             </div>
 
             {/* Modal Actions */}
@@ -388,7 +501,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>Send Tracked Email</span>
+                    <span>Send Outreach Email</span>
                   </>
                 )}
               </button>
@@ -400,8 +513,10 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
             <div className="border border-slate-300 rounded-2xl overflow-hidden shadow-xs bg-white">
               <div className="bg-slate-50 p-3.5 border-b border-slate-200 text-xs space-y-1.5 font-sans">
                 <div className="flex items-center justify-between">
-                  <div><strong className="text-slate-500">From:</strong> Enterprise Sales &lt;sales@company.com&gt;</div>
-                  <span className="text-[10px] text-slate-400">Inbox Preview</span>
+                  <div><strong className="text-slate-500">From:</strong> {senderName} &lt;anil.infyx@gmail.com&gt;</div>
+                  <span className="text-[10px] bg-slate-200/80 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+                    {deliverabilityMode === 'HIGH_INBOX' ? '🛡️ Direct Inbox Delivery' : '📊 Tracking Mode'}
+                  </span>
                 </div>
                 <div><strong className="text-slate-500">To:</strong> {recipientName || 'Client'} &lt;{recipientEmail || 'client@company.com'}&gt;</div>
                 <div><strong className="text-slate-500">Subject:</strong> <span className="font-bold text-slate-800">{subject || 'No subject'}</span></div>
@@ -437,7 +552,15 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-sans">
                   <span>Authentic 1-to-1 Executive Email Format</span>
                   <span className="flex items-center text-emerald-600 font-semibold">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> 1x1 Tracking Pixel Active
+                    {deliverabilityMode === 'HIGH_INBOX' ? (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Anti-Spam Clean Delivery (No Web Beacons)
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> 1x1 Tracking Pixel Active
+                      </>
+                    )}
                   </span>
                 </div>
               </div>

@@ -342,7 +342,10 @@ export async function sendEmail(payload: {
   recipient_name?: string;
   subject: string;
   body_html: string;
+  body_text?: string;
   sender_name?: string;
+  track_opens?: boolean;
+  deliverability_mode?: 'FULL_TRACKING' | 'HIGH_INBOX';
 }): Promise<{ success: boolean; message: string; data: TrackedEmail }> {
   const res = await fetch(`${API_BASE}/emails/send`, {
     method: 'POST',
