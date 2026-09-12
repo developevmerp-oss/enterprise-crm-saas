@@ -152,6 +152,9 @@ CREATE TABLE IF NOT EXISTS quotations (
   status VARCHAR(50) DEFAULT 'DRAFT',
   items JSONB DEFAULT '[]'::jsonb,
   valid_until DATE,
+  public_token VARCHAR(100) UNIQUE,
+  view_count INTEGER DEFAULT 0,
+  accepted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
