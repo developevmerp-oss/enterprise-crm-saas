@@ -224,6 +224,29 @@ router.get('/public/proposal/:token', async (req, res) => {
         }
       }
 
+      // Record direct proposal view & click without needing suspicious redirect tracking
+      try {
+        await pool.query(`
+          UPDATE tracked_emails
+          SET clicked_at = COALESCE(clicked_at, CURRENT_TIMESTAMP),
+              click_count = click_count + 1,
+              last_clicked_at = CURRENT_TIMESTAMP,
+              status = CASE WHEN status = 'ACCEPTED' THEN status ELSE 'CLICKED' END
+          WHERE id = $1
+        `, [email.id]);
+
+        if (email.quotation_id) {
+          await pool.query(`
+            UPDATE quotations
+            SET view_count = COALESCE(view_count, 0) + 1,
+                status = CASE WHEN status = 'DRAFT' THEN 'SENT' ELSE status END
+            WHERE id = $1
+          `, [email.quotation_id]);
+        }
+      } catch (trackErr) {
+        console.warn('Failed to update proposal view count:', trackErr.message);
+      }
+
       return res.json({
         success: true,
         data: {
@@ -354,8 +377,19 @@ router.post('/send', requireRoles(['SUPER_ADMIN', 'BUSINESS_OWNER', 'SALES_MANAG
     const trackingToken = uuidv4();
     const proposalToken = quotation_id ? uuidv4() : null;
 
-    const backendUrl = process.env.BACKEND_PUBLIC_URL || `http://localhost:${process.env.PORT || 5080}`;
-    const frontendUrl = process.env.FRONTEND_PUBLIC_URL || 'http://localhost:3000';
+    // Safe production URL resolution: NEVER send http://localhost in live outbound emails
+    const reqHost = req.headers['x-forwarded-host'] || req.headers.host || '';
+    const reqProto = req.headers['x-forwarded-proto'] || 'https';
+    
+    let backendUrl = process.env.BACKEND_PUBLIC_URL;
+    if (!backendUrl || backendUrl.includes('localhost')) {
+      backendUrl = reqHost ? `${reqProto}://${reqHost}` : 'https://enterprise-crm-saas-eight.vercel.app';
+    }
+
+    let frontendUrl = process.env.FRONTEND_PUBLIC_URL;
+    if (!frontendUrl || frontendUrl.includes('localhost')) {
+      frontendUrl = 'https://enterprise-crm-saas-ancw.vercel.app';
+    }
 
     // 1. Build Proposal Links (Direct or Tracked Redirect)
     let finalBodyHtml = body_html;

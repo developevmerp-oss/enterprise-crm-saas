@@ -67,20 +67,16 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
     }
     if (preselectedQuoteId) {
       setSelectedQuoteId(preselectedQuoteId);
-    } else if (quotations.length > 0 && template === 'PROPOSAL' && !selectedQuoteId) {
-      setSelectedQuoteId(quotations[0].id);
     }
-  }, [targetLead, preselectedQuoteId, quotations, template, selectedQuoteId]);
+  }, [targetLead, preselectedQuoteId]);
 
   // Apply template defaults matching authentic executive emails
   useEffect(() => {
     const name = recipientName || targetLead?.first_name || 'Mark';
     const comp = targetLead?.company_name || 'your company';
-    const qNum = selectedQuote ? selectedQuote.quote_number : 'QT-2026-002';
-    const qAmt = selectedQuote ? `$${Number(selectedQuote.total_amount).toLocaleString()}` : '$65,000';
 
     if (template === 'PROPOSAL') {
-      setSubject(`Enterprise ERP & Automation Platform - ${comp} [${qNum}]`);
+      setSubject(`Enterprise Operations & ERP Platform - ${comp}`);
       setBodyText(
         `Dear ${name},\n\n` +
         `I recently came across ${comp} and wanted to reach out regarding your business operations.\n\n` +
@@ -91,7 +87,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
         `• Resource management, machinery and asset tracking\n` +
         `• Digital quotations, commercial proposals and contract closing\n` +
         `• Financial records, approvals and real-time executive dashboards\n\n` +
-        `Based on your requirements, our team has prepared an itemized commercial proposal valued at ${qAmt}.\n\n` +
+        `Our team has prepared a tailored commercial proposal and itemized scope of work for ${comp}.\n\n` +
         `I would be happy to give you a quick 20-minute demo and show how it could work specifically for ${comp}.\n\n` +
         `Would you be available for a short call this week or next?\n\n` +
         `Best regards,\n` +
@@ -99,7 +95,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
       );
     } else if (template === 'THREAD_FOLLOWUP') {
       // 2nd follow-up email with previous thread quote below (matches your exact screenshot)
-      setSubject(`Re: Enterprise ERP & Automation Platform - ${comp}`);
+      setSubject(`Re: Enterprise Operations & ERP Platform - ${comp}`);
       setBodyText(
         `Hi ${name},\n\n` +
         `Just following up on my previous email regarding our operations platform and its potential fit for ${comp}.\n\n` +
@@ -118,7 +114,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
         `• Field planning and scheduling\n` +
         `• Employees and team accountability\n` +
         `• Commercial proposals and executive reporting\n\n` +
-        `We have attached an itemized commercial proposal valued at ${qAmt} [${qNum}].`
+        `We would welcome the opportunity to connect.`
       );
     } else if (template === 'FOLLOWUP') {
       setSubject(`Quick Follow-up regarding ${comp}'s Growth Roadmap`);
