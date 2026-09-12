@@ -41,8 +41,10 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
     }
     if (preselectedQuoteId) {
       setSelectedQuoteId(preselectedQuoteId);
+    } else if (quotations.length > 0 && template === 'PROPOSAL' && !selectedQuoteId) {
+      setSelectedQuoteId(quotations[0].id);
     }
-  }, [targetLead, preselectedQuoteId]);
+  }, [targetLead, preselectedQuoteId, quotations, template, selectedQuoteId]);
 
   // Apply template defaults
   useEffect(() => {
@@ -255,7 +257,14 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
             {/* Attach Commercial Quotation */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span>Attach Commercial Quotation (Generates Tracked Proposal Link)</span>
+                <span className="flex items-center gap-1.5">
+                  Attach Commercial Quotation (Generates Tracked Proposal Link)
+                  {quotations.length > 0 && (
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                      {quotations.length} available
+                    </span>
+                  )}
+                </span>
                 <span className="text-[11px] text-emerald-700 font-semibold">Optional</span>
               </label>
               <select
@@ -266,10 +275,15 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
                 <option value="">No quotation attached (standard email tracking only)</option>
                 {quotations.map((q) => (
                   <option key={q.id} value={q.id}>
-                    {q.quote_number} — ${Number(q.total_amount).toLocaleString()} ({q.deal_title || 'Direct Quote'})
+                    {q.quote_number} — ${Number(q.total_amount).toLocaleString()} ({q.deal_title || 'Commercial Quote'})
                   </option>
                 ))}
               </select>
+              {quotations.length === 0 && (
+                <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                  💡 No quotes found in this workspace yet. You can create custom proposals anytime in the <strong>Quotes & Products</strong> tab.
+                </p>
+              )}
             </div>
 
             {/* Subject */}
